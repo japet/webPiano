@@ -1,13 +1,118 @@
 <!DOCTYPE html>
+<script src="https://cdn.jsdelivr.net/npm/tonal/browser/tonal.min.js"></script>
 <html>
   <head>
+    <link rel="stylesheet" href="styles.css">
     <title>Web MIDI Example</title>
   </head>
+
   <body>
     <div id="midi-data"></div>
+
+    <div class="piano">
+      <div note="A0"  class="key white"></div>
+      <div note="Bb0" class="key black"></div>
+      <div note="B0"  class="key white"></div>
+      <div note="C1"  class="key white"></div>
+      <div note="Db1" class="key black"></div>
+      <div note="D1"  class="key white"></div>
+      <div note="Eb1" class="key black"></div>
+      <div note="E1"  class="key white"></div>
+      <div note="F1"  class="key white"></div>
+      <div note="Gb1" class="key black"></div>
+      <div note="G1"  class="key white"></div>
+      <div note="Ab1" class="key black"></div>
+      <div note="A1"  class="key white"></div>
+      <div note="Bb1" class="key black"></div>
+      <div note="B1"  class="key white"></div>
+      <div note="C2"  class="key white"></div>
+      <div note="Db2" class="key black"></div>
+      <div note="D2"  class="key white"></div>
+      <div note="Eb2" class="key black"></div>
+      <div note="E2"  class="key white"></div>
+      <div note="F2"  class="key white"></div>
+      <div note="Gb2" class="key black"></div>
+      <div note="G2"  class="key white"></div>
+      <div note="Ab2" class="key black"></div>
+      <div note="A2"  class="key white"></div>
+      <div note="Bb2" class="key black"></div>
+      <div note="B2"  class="key white"></div>
+      <div note="C3"  class="key white"></div>
+      <div note="Db3" class="key black"></div>
+      <div note="D3"  class="key white"></div>
+      <div note="Eb3" class="key black"></div>
+      <div note="E3"  class="key white"></div>
+      <div note="F3"  class="key white"></div>
+      <div note="Gb3" class="key black"></div>
+      <div note="G3"  class="key white"></div>
+      <div note="Ab3" class="key black"></div>
+      <div note="A3"  class="key white"></div>
+      <div note="Bb3" class="key black"></div>
+      <div note="B3"  class="key white"></div>
+      <div note="C4"  class="key white"></div>
+      <div note="Db4" class="key black"></div>
+      <div note="D4"  class="key white"></div>
+      <div note="Eb4" class="key black"></div>
+      <div note="E4"  class="key white"></div>
+      <div note="F4"  class="key white"></div>
+      <div note="Gb4" class="key black"></div>
+      <div note="G4"  class="key white"></div>
+      <div note="Ab4" class="key black"></div>
+      <div note="A4"  class="key white"></div>
+      <div note="Bb4" class="key black"></div>
+      <div note="B4"  class="key white"></div>
+      <div note="C5"  class="key white"></div>
+      <div note="Db5" class="key black"></div>
+      <div note="D5"  class="key white"></div>
+      <div note="Eb5" class="key black"></div>
+      <div note="E5"  class="key white"></div>
+      <div note="F5"  class="key white"></div>
+      <div note="Gb5" class="key black"></div>
+      <div note="G5"  class="key white"></div>
+      <div note="Ab5" class="key black"></div>
+      <div note="A5"  class="key white"></div>
+      <div note="Bb5" class="key black"></div>
+      <div note="B5"  class="key white"></div>
+      <div note="C6"  class="key white"></div>
+      <div note="Db6" class="key black"></div>
+      <div note="D6"  class="key white"></div>
+      <div note="Eb6" class="key black"></div>
+      <div note="E6"  class="key white"></div>
+      <div note="F6"  class="key white"></div>
+      <div note="Gb6" class="key black"></div>
+      <div note="G6"  class="key white"></div>
+      <div note="Ab6" class="key black"></div>
+      <div note="A6"  class="key white"></div>
+      <div note="Bb6" class="key black"></div>
+      <div note="B6"  class="key white"></div>
+      <div note="C7"  class="key white"></div>
+      <div note="Db7" class="key black"></div>
+      <div note="D7"  class="key white"></div>
+      <div note="Eb7" class="key black"></div>
+      <div note="E7"  class="key white"></div>
+      <div note="F7"  class="key white"></div>
+      <div note="Gb7" class="key black"></div>
+      <div note="G7"  class="key white"></div>
+      <div note="Ab7" class="key black"></div>
+      <div note="A7"  class="key white"></div>
+      <div note="Bb7" class="key black"></div>
+      <div note="B7"  class="key white"></div>
+      <div note="C8"  class="key white"></div>
+    </div>
+
     <script>
       // Request MIDI access
       navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+
+      const audioCtx = new AudioContext();
+        const oscillators = {};
+        const gains = [];
+
+        // create an array to store the frequency input elements
+        const frequencyInputs = [];
+        const volumeSliders = [];
+
+        const pianoKeys = document.querySelectorAll('.key');
 
       function onMIDISuccess(midiAccess) {
         // Get the first available input device
@@ -27,7 +132,51 @@
 
         // Display the MIDI data on the page
         var midiDataDiv = document.getElementById('midi-data');
-        midiDataDiv.innerHTML = 'MIDI Data: ' + data;
+        const noteName = Tonal.Midi.midiToNoteName(data[1]);
+        const strength = data[2];
+        const pianoNoteDiv = document.querySelector('div[note='+noteName+']');
+        console.log(pianoNoteDiv);
+        midiDataDiv.innerHTML = 'MIDI Data: ' + data + ' ' + noteName;
+        console.log(data);
+
+        if (strength > 0){
+          pianoNoteDiv.classList.add("selected");
+          selectNote(pianoNoteDiv);
+
+        }else{
+          pianoNoteDiv.classList.remove("selected");
+          unselectNote(pianoNoteDiv);
+        }
+
+        // create a function to add an oscillator
+        function selectNote(note) {
+          //create an oscillator
+          const oscillator = audioCtx.createOscillator();
+          const noteName = note.getAttribute("note")
+          const freq = Tonal.Note.freq(noteName);
+
+          //pull freq from Tonal, set oscillator to that value
+          oscillator.frequency.value = freq;
+    
+          //create a gain control (volume), and set it to 10%
+          const gainNode = audioCtx.createGain();
+          gainNode.gain.value = 0.1; 
+          oscillator.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+
+          // add the oscillator to an object that can be referenced note name
+          oscillators[note.getAttribute("note")] = oscillator;
+          oscillator.start();
+          console.log(oscillators);
+        }
+
+        function unselectNote(note) {
+            const noteName = note.getAttribute("note");
+            const oscillator = oscillators[noteName];
+            oscillator.stop();
+            oscillator.disconnect();
+            delete oscillators[noteName];
+        }
       }
     </script>
   </body>
