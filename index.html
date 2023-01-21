@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Web MIDI Example</title>
+  </head>
+  <body>
+    <div id="midi-data"></div>
+    <script>
+      // Request MIDI access
+      navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+
+      function onMIDISuccess(midiAccess) {
+        // Get the first available input device
+        var input = midiAccess.inputs.values().next().value;
+
+        // Listen for MIDI messages from the input device
+        input.onmidimessage = handleMIDIMessage;
+      }
+
+      function onMIDIFailure() {
+        console.log('Failed to access MIDI devices.');
+      }
+
+      function handleMIDIMessage(event) {
+        // Get the MIDI data from the message
+        var data = event.data;
+
+        // Display the MIDI data on the page
+        var midiDataDiv = document.getElementById('midi-data');
+        midiDataDiv.innerHTML = 'MIDI Data: ' + data;
+      }
+    </script>
+  </body>
+</html>
