@@ -1,5 +1,7 @@
 <!DOCTYPE html>
 <script src="https://cdn.jsdelivr.net/npm/tonal/browser/tonal.min.js"></script>
+<script defer src="webPiano.js"></script>
+<script src="http://unpkg.com/tone"></script>
 <html>
   <head>
     <link rel="stylesheet" href="styles.css">
@@ -8,6 +10,7 @@
 
   <body>
     <div id="midi-data"></div>
+<!--
 
     <div class="piano">
       <div note="A0"  class="key white"></div>
@@ -100,19 +103,34 @@
       <div note="C8"  class="key white"></div>
     </div>
 
+-->
+    <web-piano id="piano1" tabindex="0"></web-piano>
+    <web-piano id="piano2"></web-piano>
+    <web-piano id="piano3"></web-piano>
+
+    <p>this is some text</p>
+    <canvas id="oscilloscope"></canvas>
+
+    <script>
+        const synth = new Tone.Synth().toDestination();
+        synth.triggerAttackRelease("C4",8n);
+    </script>
+<!--
     <script>
       // Request MIDI access
       navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
 
       const audioCtx = new AudioContext();
-        const oscillators = {};
-        const gains = [];
+      const oscillators = {};
+      const gains = [];
 
-        // create an array to store the frequency input elements
-        const frequencyInputs = [];
-        const volumeSliders = [];
+      // create an array to store the frequency input elements
+      const frequencyInputs = [];
+      const volumeSliders = [];
 
-        const pianoKeys = document.querySelectorAll('.key');
+      const pianoKeys = document.querySelectorAll('.key');
+      const linearRampPlus = document.querySelector(".linear-ramp-plus");
+      const linearRampMinus = document.querySelector(".linear-ramp-minus");
 
       function onMIDISuccess(midiAccess) {
         // Get the first available input device
@@ -140,44 +158,110 @@
         console.log(data);
 
         if (strength > 0){
-          pianoNoteDiv.classList.add("selected");
-          selectNote(pianoNoteDiv);
-
+          console.log("strike!");
+          strikeNote(noteName);
         }else{
-          pianoNoteDiv.classList.remove("selected");
-          unselectNote(pianoNoteDiv);
-        }
-
-        // create a function to add an oscillator
-        function selectNote(note) {
-          //create an oscillator
-          const oscillator = audioCtx.createOscillator();
-          const noteName = note.getAttribute("note")
-          const freq = Tonal.Note.freq(noteName);
-
-          //pull freq from Tonal, set oscillator to that value
-          oscillator.frequency.value = freq;
-    
-          //create a gain control (volume), and set it to 10%
-          const gainNode = audioCtx.createGain();
-          gainNode.gain.value = 0.1; 
-          oscillator.connect(gainNode);
-          gainNode.connect(audioCtx.destination);
-
-          // add the oscillator to an object that can be referenced note name
-          oscillators[note.getAttribute("note")] = oscillator;
-          oscillator.start();
-          console.log(oscillators);
-        }
-
-        function unselectNote(note) {
-            const noteName = note.getAttribute("note");
-            const oscillator = oscillators[noteName];
-            oscillator.stop();
-            oscillator.disconnect();
-            delete oscillators[noteName];
+          console.log("release!");
+          releaseNote(noteName);
         }
       }
+
+        // create a function to add an oscillator
+      function strikeNote(noteName) {
+        //create an oscillator
+        const pianoNoteDiv = document.querySelector('div[note='+noteName+']');
+        pianoNoteDiv.classList.add("selected");
+        const oscillator = audioCtx.createOscillator();
+        const freq = Tonal.Note.freq(noteName);
+        const currentTime = audioCtx.currentTime;
+
+        //pull freq from Tonal, set oscillator to that value
+        oscillator.frequency.value = freq;
+  
+        //create a gain control (volume), and set it to 10%
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.001; 
+        gainNode.gain.exponentialRampToValueAtTime(0.1, currentTime+0.01);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        // add the oscillator to an object that can be referenced note name
+        oscillators[noteName] = oscillator;
+        gains[noteName] = gainNode;
+        oscillator.start();
+        oscillator.connect(analyser);
+        console.log(oscillators);
+      }
+
+      function releaseNote(noteName) {
+          const pianoNoteDiv = document.querySelector('div[note='+noteName+']');
+          const oscillator = oscillators[noteName];
+          const gainNode = gains[noteName];
+          const currentTime = audioCtx.currentTime;
+          //const stopTime = audioCtx.currentTime + 0.1;
+          console.log(gains);
+          //gainNode.gain.value = .001;
+          gainNode.gain.linearRampToValueAtTime(0,0.01);
+          //gainNode.gain.exponentialRampToValueAtTime(0.0001, currentTime + 0.01);
+          oscillator.stop();
+          oscillator.disconnect();
+          //delete oscillators[noteName];
+          //delete gains[noteName];
+          pianoNoteDiv.classList.remove("selected");
+      }
+
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      analyser.getByteTimeDomainData(dataArray);
+
+      // Connect the source to be analysed
+      //source.connect(analyser);
+
+      // Get a canvas defined with ID "oscilloscope"
+      const canvas = document.getElementById("oscilloscope");
+      const canvasCtx = canvas.getContext("2d");
+
+      // draw an oscilloscope of the current audio source
+
+      function draw() {
+        requestAnimationFrame(draw);
+
+        analyser.getByteTimeDomainData(dataArray);
+
+        canvasCtx.fillStyle = "rgb(200, 200, 200)";
+        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+        canvasCtx.lineWidth = 2;
+        canvasCtx.strokeStyle = "rgb(0, 0, 0)";
+
+        canvasCtx.beginPath();
+
+        const sliceWidth = (canvas.width * 1.0) / bufferLength;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+          const v = dataArray[i] / 128.0;
+          const y = (v * canvas.height) / 2;
+
+          if (i === 0) {
+            canvasCtx.moveTo(x, y);
+          } else {
+            canvasCtx.lineTo(x, y);
+          }
+
+          x += sliceWidth;
+        }
+
+        canvasCtx.lineTo(canvas.width, canvas.height / 2);
+        canvasCtx.stroke();
+      }
+
+      draw();
     </script>
+    -->
+
   </body>
 </html>

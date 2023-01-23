@@ -1,0 +1,501 @@
+const MIDI_NOTE_MAP = {
+    0: "C0",
+    1: "Db0",
+    2: "D0",
+    3: "Eb0",
+    4: "E0",
+    5: "F0",
+    6: "Gb0",
+    7: "G0",
+    8: "Ab0",
+    9: "A0",
+    10: "Bb0",
+    11: "B0",
+    12: "C1",
+    13: "Db1",
+    14: "D1",
+    15: "Eb1",
+    16: "E1",
+    17: "F1",
+    18: "Gb1",
+    19: "G1",
+    20: "Ab1",
+    21: "A1",
+    22: "Bb1",
+    23: "B1",
+    24: "C2",
+    25: "Db2",
+    26: "D2",
+    27: "Eb2",
+    28: "E2",
+    29: "F2",
+    30: "Gb2",
+    31: "G2",
+    32: "Ab2",
+    33: "A2",
+    34: "Bb2",
+    35: "B2",
+    36: "C3",
+    37: "Db3",
+    38: "D3",
+    39: "Eb3",
+    40: "E3",
+    41: "F3",
+    42: "Gb3",
+    43: "G3",
+    44: "Ab3",
+    45: "A3",
+    46: "Bb3",
+    47: "B3",
+    48: "C4",
+    49: "Db4",
+    50: "D4",
+    51: "Eb4",
+    52: "E4",
+    53: "F4",
+    54: "Gb4",
+    55: "G4",
+    56: "Ab4",
+    57: "A4",
+    58: "Bb4",
+    59: "B4",
+    60: "C5",
+    61: "Db5",
+    62: "D5",
+    63: "Eb5",
+    64: "E5",
+    65: "F5",
+    66: "Gb5",
+    67: "G5",
+    68: "Ab5",
+    69: "A5",
+    70: "Bb5",
+    71: "B5",
+    72: "C6",
+    73: "Db6",
+    74: "D6",
+    75: "Eb6",
+    76: "E6",
+    77: "F6",
+    78: "Gb6",
+    79: "G6",
+    80: "Ab6",
+    81: "A6",
+    82: "Bb6",
+    83: "B6",
+    84: "C7",
+    85: "Db7",
+    86: "D7",
+    87: "Eb7",
+    88: "E7",
+    89: "F7",
+    90: "Gb7",
+    91: "G7",
+    92: "Ab7",
+    93: "A7",
+    94: "Bb7",
+    95: "B7",
+    96: "C8",
+}
+
+const KEYBOARD_NOTE_MAP = {
+    a: "C4",
+    w: "Db4",
+    s: "D4",
+    e: "Eb4",
+    d: "E4",
+    f: "F4",
+    t: "Gb4",
+    g: "G4",
+    y: "Ab4",
+    h: "A4",
+    u: "Bb4",
+    j: "B4",
+    k: "C5",
+    o: "Db5",
+    l: "D5",
+    p: "Eb5",
+    ';': "E5",    
+}
+
+const template = document.createElement("template");
+template.innerHTML = `
+<style>
+    :host{
+        display: flex;
+        --background-color: blue;
+        --indicator-color: #EEB0B0;
+        height: 140px;
+        width: 1000px;
+    }
+
+    .piano {
+        padding: 30px 1% 0 1%;
+        background-color: #7a7a7a;
+        border-radius: 1vmin;
+        text-align:center;
+        overflow: hidden;
+        display: flex;
+        box-sizing: border-box;
+        height: 100%;
+        width: 100%;
+    }
+    
+    .white {
+        width: 2%;
+        height: 100%;
+        background-color: white;
+        border: 1px solid #333;
+        box-sizing: border-box;
+    }
+    
+    .black {
+        width: 1.2%;
+        height: 60%;
+        background-color: black;
+        border-left: 2px solid #333;
+        border-right: 2px solid #333;
+        border-bottom: 2px solid #333;
+        border-top: 1px solid #333;
+        margin-left: -0.6%;
+        margin-right: -0.6%;
+        z-index: 2;
+        box-sizing: border-box;
+    }
+    
+    .selected{
+        background-color: #4a87fa;
+    }
+
+    .playingDisplay{
+        position: fixed;
+        margin-top: -12px;
+        font-size: 12px;
+    }
+
+    .indicator{
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: var(--indicator-color);
+        position: fixed;
+        margin-top: -20px;
+        
+    }
+
+    :host(:focus){
+        outline: none;
+        --indicator-color: #22FF47;
+    }
+</style>
+
+<div class="piano">
+      <div class = "playingDisplay"></div>
+      <div class = "indicator"></div>
+      <div note="A0"  class="key white"></div>
+      <div note="Bb0" class="key black"></div>
+      <div note="B0"  class="key white"></div>
+      <div note="C1"  class="key white"></div>
+      <div note="Db1" class="key black"></div>
+      <div note="D1"  class="key white"></div>
+      <div note="Eb1" class="key black"></div>
+      <div note="E1"  class="key white"></div>
+      <div note="F1"  class="key white"></div>
+      <div note="Gb1" class="key black"></div>
+      <div note="G1"  class="key white"></div>
+      <div note="Ab1" class="key black"></div>
+      <div note="A1"  class="key white"></div>
+      <div note="Bb1" class="key black"></div>
+      <div note="B1"  class="key white"></div>
+      <div note="C2"  class="key white"></div>
+      <div note="Db2" class="key black"></div>
+      <div note="D2"  class="key white"></div>
+      <div note="Eb2" class="key black"></div>
+      <div note="E2"  class="key white"></div>
+      <div note="F2"  class="key white"></div>
+      <div note="Gb2" class="key black"></div>
+      <div note="G2"  class="key white"></div>
+      <div note="Ab2" class="key black"></div>
+      <div note="A2"  class="key white"></div>
+      <div note="Bb2" class="key black"></div>
+      <div note="B2"  class="key white"></div>
+      <div note="C3"  class="key white"></div>
+      <div note="Db3" class="key black"></div>
+      <div note="D3"  class="key white"></div>
+      <div note="Eb3" class="key black"></div>
+      <div note="E3"  class="key white"></div>
+      <div note="F3"  class="key white"></div>
+      <div note="Gb3" class="key black"></div>
+      <div note="G3"  class="key white"></div>
+      <div note="Ab3" class="key black"></div>
+      <div note="A3"  class="key white"></div>
+      <div note="Bb3" class="key black"></div>
+      <div note="B3"  class="key white"></div>
+      <div note="C4"  class="key white"></div>
+      <div note="Db4" class="key black"></div>
+      <div note="D4"  class="key white"></div>
+      <div note="Eb4" class="key black"></div>
+      <div note="E4"  class="key white"></div>
+      <div note="F4"  class="key white"></div>
+      <div note="Gb4" class="key black"></div>
+      <div note="G4"  class="key white"></div>
+      <div note="Ab4" class="key black"></div>
+      <div note="A4"  class="key white"></div>
+      <div note="Bb4" class="key black"></div>
+      <div note="B4"  class="key white"></div>
+      <div note="C5"  class="key white"></div>
+      <div note="Db5" class="key black"></div>
+      <div note="D5"  class="key white"></div>
+      <div note="Eb5" class="key black"></div>
+      <div note="E5"  class="key white"></div>
+      <div note="F5"  class="key white"></div>
+      <div note="Gb5" class="key black"></div>
+      <div note="G5"  class="key white"></div>
+      <div note="Ab5" class="key black"></div>
+      <div note="A5"  class="key white"></div>
+      <div note="Bb5" class="key black"></div>
+      <div note="B5"  class="key white"></div>
+      <div note="C6"  class="key white"></div>
+      <div note="Db6" class="key black"></div>
+      <div note="D6"  class="key white"></div>
+      <div note="Eb6" class="key black"></div>
+      <div note="E6"  class="key white"></div>
+      <div note="F6"  class="key white"></div>
+      <div note="Gb6" class="key black"></div>
+      <div note="G6"  class="key white"></div>
+      <div note="Ab6" class="key black"></div>
+      <div note="A6"  class="key white"></div>
+      <div note="Bb6" class="key black"></div>
+      <div note="B6"  class="key white"></div>
+      <div note="C7"  class="key white"></div>
+      <div note="Db7" class="key black"></div>
+      <div note="D7"  class="key white"></div>
+      <div note="Eb7" class="key black"></div>
+      <div note="E7"  class="key white"></div>
+      <div note="F7"  class="key white"></div>
+      <div note="Gb7" class="key black"></div>
+      <div note="G7"  class="key white"></div>
+      <div note="Ab7" class="key black"></div>
+      <div note="A7"  class="key white"></div>
+      <div note="Bb7" class="key black"></div>
+      <div note="B7"  class="key white"></div>
+      <div note="C8"  class="key white"></div>
+    </div>
+`;
+
+class webPiano extends HTMLElement {
+    constructor (){
+        super();
+        const shadow = this.attachShadow({mode: "open"});
+        this.activeNotes = [];
+        this.tabIndex = 0;
+        shadow.append(template.content.cloneNode(true));
+        this.addEventListener('keydown', this._handleKeyDown);
+        this.addEventListener('keyup', this._handleKeyUp);
+        this.addEventListener('blur', this._handleBlur);
+    }
+
+    _handleBlur(event){
+        const selected = this.shadowRoot.querySelectorAll('.selected');
+        selected.forEach((div) => {
+            this.releaseNote(div);
+        })
+    }
+
+    _handleKeyDown(event){
+        var noteName = KEYBOARD_NOTE_MAP[event.key];
+        if (this.activeNotes.indexOf(noteName) == -1){
+            const pianoNoteDiv = this.shadowRoot.querySelector('div[note='+noteName+']');
+            if (pianoNoteDiv){
+                this.strikeNote(pianoNoteDiv);            
+            }
+        }
+    }
+
+    _handleKeyUp(event){
+        var noteName = KEYBOARD_NOTE_MAP[event.key];
+        const pianoNoteDiv = this.shadowRoot.querySelector('div[note='+noteName+']');
+        if (pianoNoteDiv){
+            this.releaseNote(pianoNoteDiv);            
+        }
+    }
+
+    connectedCallback(){
+        navigator.requestMIDIAccess().then(midi => {
+            this.midi = midi;
+            console.log('midi device initialized');
+            midi.inputs.forEach(input => {
+                input.onmidimessage = this.handleMIDIMessage;
+            });
+        }, error => {
+            console.log('fialed to initalize midi: ${error}');
+        });
+        this.shadowRoot.querySelectorAll('.key').forEach(key => {
+            key.addEventListener('mousedown', () => this.mouseDown(key));
+            key.addEventListener('mouseup', () => this.mouseUp(key));
+        });
+    }
+
+    handleMIDIMessage = (event) => {
+        if (this === document.activeElement){
+            var data = event.data;
+            var midiNote = MIDI_NOTE_MAP[data[1]];
+            var strength = data [2];
+            const pianoNoteDiv = this.shadowRoot.querySelector('div[note='+midiNote+']');
+            if (strength > 0){
+                this.strikeNote(pianoNoteDiv);
+            }else{
+                this.releaseNote(pianoNoteDiv);
+            }
+        }
+    }
+
+    mouseDown(key){
+        this.strikeNote(key);
+    }
+
+    mouseUp(key){
+        this.releaseNote(key);
+    }
+
+    handleTransition(key){
+        const selected = this.shadowRoot.querySelectorAll('.selected');
+        this.activeNotes = [];
+
+        selected.forEach((div) => {
+            const noteName = div.getAttribute("note");
+            this.activeNotes.push(noteName);
+        })
+    }
+
+    strikeNote(noteDiv){
+        if(!noteDiv.classList.contains('selected')){
+            const noteName = noteDiv.getAttribute("note");
+            noteDiv.classList.add('selected');
+            this.activeNotes.push(noteName);
+            this.shadowRoot.querySelector('.playingDisplay').innerHTML = this.activeNotes;
+        }
+    }
+
+    releaseNote(noteDiv){
+        if(noteDiv.classList.contains('selected')){
+            noteDiv.classList.remove('selected');
+            const noteName = noteDiv.getAttribute("note");
+            var index = this.activeNotes.indexOf(noteName);
+            this.activeNotes.splice(index,1);
+            this.shadowRoot.querySelector('.playingDisplay').innerHTML = this.activeNotes;
+        }
+    }
+
+}
+
+
+//const pianoKeys = document.querySelectorAll('.key');
+
+// Request MIDI access
+    //navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+
+//const audioCtx = new AudioContext();
+//const oscillators = {};
+//const gains = [];
+
+// create an array to store the frequency input elements
+//const frequencyInputs = [];
+//const volumeSliders = [];
+
+//const pianoKeys = document.querySelectorAll('.key');
+//const linearRampPlus = document.querySelector(".linear-ramp-plus");
+//const linearRampMinus = document.querySelector(".linear-ramp-minus");
+/*
+function onMIDISuccess(midiAccess) {
+  // Get the first available input device
+  var input = midiAccess.inputs.values().next().value;
+
+  // Listen for MIDI messages from the input device
+  input.onmidimessage = handleMIDIMessage;
+}
+
+function onMIDIFailure() {
+  console.log('Failed to access MIDI devices.');
+}
+
+function handleMIDIMessage(event) {
+  // Get the MIDI data from the message
+  var data = event.data;
+
+  // Display the MIDI data on the page
+  var midiDataDiv = document.getElementById('midi-data');
+  const noteName = Tonal.Midi.midiToNoteName(data[1]);
+  const strength = data[2];
+  //const pianoNoteDiv = document.querySelector('div[note='+noteName+']');
+  //console.log(pianoNoteDiv);
+  midiDataDiv.innerHTML = 'MIDI Data: ' + data + ' ' + noteName;
+  console.log(data);
+
+  if (strength > 0){
+    console.log("strike!");
+    strikeNote(noteName);
+  }else{
+    console.log("release!");
+    releaseNote(noteName);
+  }
+}
+
+//handle
+function mouseClick(){
+    console.log(this);
+    if(!this.classList.contains("selected")){
+        //this.classList.add("selected");
+        //strikeNote(this);
+    }else{
+        //this.classList.remove("selected");
+        //Note(this);
+    }
+    checkChord(); //check if the set of currently selected notes are a chord
+}
+
+  // create a function to add an oscillator
+function strikeNote(noteName) {
+  //create an oscillator
+  const pianoNoteDiv = document.querySelector('div[note='+noteName+']');
+  pianoNoteDiv.classList.add("selected");
+  const oscillator = audioCtx.createOscillator();
+  const freq = Tonal.Note.freq(noteName);
+  const currentTime = audioCtx.currentTime;
+
+  //pull freq from Tonal, set oscillator to that value
+  oscillator.frequency.value = freq;
+
+  //create a gain control (volume), and set it to 10%
+  const gainNode = audioCtx.createGain();
+  gainNode.gain.value = 0.001; 
+  gainNode.gain.exponentialRampToValueAtTime(0.1, currentTime+0.01);
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+
+  // add the oscillator to an object that can be referenced note name
+  oscillators[noteName] = oscillator;
+  gains[noteName] = gainNode;
+  oscillator.start();
+  oscillator.connect(analyser);
+  console.log(oscillators);
+}
+
+function releaseNote(noteName) {
+    const pianoNoteDiv = document.querySelector('div[note='+noteName+']');
+    const oscillator = oscillators[noteName];
+    const gainNode = gains[noteName];
+    const currentTime = audioCtx.currentTime;
+    //const stopTime = audioCtx.currentTime + 0.1;
+    console.log(gains);
+    //gainNode.gain.value = .001;
+    gainNode.gain.linearRampToValueAtTime(0,0.01);
+    //gainNode.gain.exponentialRampToValueAtTime(0.0001, currentTime + 0.01);
+    oscillator.stop();
+    oscillator.disconnect();
+    //delete oscillators[noteName];
+    //delete gains[noteName];
+    pianoNoteDiv.classList.remove("selected");
+}
+*/
+customElements.define("web-piano", webPiano);
