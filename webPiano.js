@@ -289,15 +289,8 @@ template.innerHTML = `
 
 //webPiano component behavior and logic
 class webPiano extends HTMLElement {
-    constructor (){
+    constructor () {
         super();
-        const shadow = this.attachShadow({mode: "open"});
-        this.activeNotes = [];
-        this.tabIndex = 0;
-        shadow.append(template.content.cloneNode(true));
-        this.addEventListener('keydown', this._handleKeyDown);
-        this.addEventListener('keyup', this._handleKeyUp);
-        this.addEventListener('blur', this._handleBlur);
     }
 
     _handleBlur(event){
@@ -325,14 +318,24 @@ class webPiano extends HTMLElement {
         }
     }
 
-    connectedCallback(){
+    connectedCallback() {
+        this.activeNotes = [];
+        this.tabIndex = 0;
+        
+        const shadow = this.attachShadow({mode: "open"});
+        shadow.append(template.content.cloneNode(true));
+        
+        this.addEventListener('keydown', this._handleKeyDown);
+        this.addEventListener('keyup', this._handleKeyUp);
+        this.addEventListener('blur', this._handleBlur);
+        
         navigator.requestMIDIAccess().then(midi => {
             this.midi = midi;
             console.log('midi device initialized');
             midi.inputs.forEach(input => {
                 input.onmidimessage = this.handleMIDIMessage;
             });
-        }, error => {
+        }, _ => {
             console.log('failed to initalize midi: ${error}');
         });
         this.shadowRoot.querySelectorAll('.key').forEach(key => {
