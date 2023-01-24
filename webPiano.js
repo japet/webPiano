@@ -120,6 +120,7 @@ const KEYBOARD_NOTE_MAP = {
     ';': "E5",    
 }
 
+
 //shadow DOM template for the piano itself
 const template = document.createElement("template");
 template.innerHTML = `
@@ -387,3 +388,5 @@ class webPiano extends HTMLElement {
 
 //defining the custom Element so it can be used in the DOM
 customElements.define("web-piano", webPiano);
+
+export {webPiano};
