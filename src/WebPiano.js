@@ -78,6 +78,9 @@ export class WebPiano extends LitElement {
 
   constructor() {
     super();
+  }
+
+  firstUpdated() {
     this.header = 'Hey there';
     this.counter = 5;
     this.activeNotes = [];
@@ -101,9 +104,7 @@ export class WebPiano extends LitElement {
       p: "Eb5",
       ';': "E5"
     };
-  }
-
-  firstUpdated(){
+    
     this.addEventListener('keydown', this._handleKeyDown);
     this.addEventListener('keyup', this._handleKeyUp);
     this.addEventListener('blur', this._handleBlur);
