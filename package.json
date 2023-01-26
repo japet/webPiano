@@ -3,7 +3,7 @@
   "description": "Webcomponent web-piano following open-wc recommendations",
   "license": "MIT",
   "author": "web-piano",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "index.js",
   "module": "index.js",
