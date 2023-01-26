@@ -1,19 +1,27 @@
 {
   "name": "web-piano",
-  "version": "0.1.0",
-  "description": "this is a Web Component that mimics a piano input",
-  "main": "webPiano.js",
+  "description": "Webcomponent web-piano following open-wc recommendations",
+  "license": "MIT",
+  "author": "web-piano",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "index.js",
+  "module": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./web-piano.js": "./web-piano.js"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "analyze": "cem analyze --litelement",
+    "start": "web-dev-server"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/japet/webPiano.git"
+  "dependencies": {
+    "lit": "^2.0.2",
+    "tonal": "^4.14.0"
   },
-  "author": "James Peters",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/japet/webPiano/issues"
+  "devDependencies": {
+    "@custom-elements-manifest/analyzer": "^0.4.17",
+    "@web/dev-server": "^0.1.34"
   },
-  "homepage": "https://github.com/japet/webPiano#readme"
+  "customElements": "custom-elements.json"
 }
