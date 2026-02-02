@@ -28,7 +28,7 @@ class AsyncReplaceDirective extends AsyncDirective {
         // If we've already set up this particular iterable, we don't need
         // to do anything.
         if (value === this.__value) {
-            return;
+            return noChange;
         }
         this.__value = value;
         let i = 0;

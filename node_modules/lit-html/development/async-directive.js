@@ -15,7 +15,6 @@ const DEV_MODE = true;
  * @return True if there were children to disconnect; false otherwise
  */
 const notifyChildrenConnectedChanged = (parent, isConnected) => {
-    var _a, _b;
     const children = parent._$disconnectableChildren;
     if (children === undefined) {
         return false;
@@ -29,7 +28,7 @@ const notifyChildrenConnectedChanged = (parent, isConnected) => {
         // this list
         // Disconnect Directive (and any nested directives contained within)
         // This property needs to remain unminified.
-        (_b = (_a = obj)['_$notifyDirectiveConnectionChanged']) === null || _b === void 0 ? void 0 : _b.call(_a, isConnected, false);
+        obj['_$notifyDirectiveConnectionChanged']?.(isConnected, false);
         // Disconnect Part/TemplateInstance
         notifyChildrenConnectedChanged(obj, isConnected);
     }
@@ -50,7 +49,7 @@ const removeDisconnectableFromParent = (obj) => {
         children = parent._$disconnectableChildren;
         children.delete(obj);
         obj = parent;
-    } while ((children === null || children === void 0 ? void 0 : children.size) === 0);
+    } while (children?.size === 0);
 };
 const addDisconnectableToParent = (obj) => {
     // Climb the parent tree, creating a sparse tree of children needing
@@ -139,11 +138,10 @@ function notifyChildPartConnectedChanged(isConnected, isClearingValue = false, f
  * Patches disconnection API onto ChildParts.
  */
 const installDisconnectAPI = (obj) => {
-    var _a, _b;
-    var _c, _d;
     if (obj.type == PartType.CHILD) {
-        (_a = (_c = obj)._$notifyConnectionChanged) !== null && _a !== void 0 ? _a : (_c._$notifyConnectionChanged = notifyChildPartConnectedChanged);
-        (_b = (_d = obj)._$reparentDisconnectables) !== null && _b !== void 0 ? _b : (_d._$reparentDisconnectables = reparentDisconnectables);
+        obj._$notifyConnectionChanged ??=
+            notifyChildPartConnectedChanged;
+        obj._$reparentDisconnectables ??= reparentDisconnectables;
     }
 };
 /**
@@ -194,14 +192,13 @@ export class AsyncDirective extends Directive {
      * @internal
      */
     ['_$notifyDirectiveConnectionChanged'](isConnected, isClearingDirective = true) {
-        var _a, _b;
         if (isConnected !== this.isConnected) {
             this.isConnected = isConnected;
             if (isConnected) {
-                (_a = this.reconnected) === null || _a === void 0 ? void 0 : _a.call(this);
+                this.reconnected?.();
             }
             else {
-                (_b = this.disconnected) === null || _b === void 0 ? void 0 : _b.call(this);
+                this.disconnected?.();
             }
         }
         if (isClearingDirective) {

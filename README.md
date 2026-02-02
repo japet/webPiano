@@ -1,69 +1,177 @@
-# webPiano
+# web-piano
 
-A customizable web component that provides an interactive 88-key piano interface with support for keyboard, mouse, and MIDI input. 
+An interactive piano web component with configurable range, multi-touch support, and MIDI input. Built with Lit 3 and TypeScript. Works with any framework.
 
 ## Features
 
-- 🎹 Full 88-key piano range (A0 to C8)
-- ⌨️ Keyboard input support
-- 🖱️ Mouse/touch interaction
-- 🎛️ MIDI device support via Web MIDI API
-- 🎨 Customizable styling via CSS custom properties
-- 📦 Built as a standard Web Component (works with any framework)
-- ⚡ Powered by Lit for efficient rendering
+- Configurable key range (default: full 88 keys, A0 to C8)
+- Keyboard, mouse/touch, and MIDI input
+- Multi-touch and glissando (slide across keys)
+- Velocity from touch/click position
+- Accessible: `<button>` keys with ARIA labels
+- Styleable via CSS custom properties and `::part()`
+- Zero runtime dependencies beyond Lit
+- TypeScript types included
 
-## Quick Start
-
-### Installation
+## Installation
 
 ```bash
-npm install @japet/web-piano
+npm install web-piano
 ```
 
-Or use directly via CDN:
+## Usage
+
+### HTML
 
 ```html
-<script type="module" src="https://unpkg.com/@japet/web-piano"></script>
+<script type="module" src="web-piano/web-piano.js"></script>
+
+<web-piano></web-piano>
 ```
 
-### Basic Usage
+### With a specific range
 
 ```html
-<!DOCTYPE html>
-<html>
-<head>
-  <script type="module">
-    import 'web-piano.js';
-  </script>
-</head>
-<body>
-  <web-piano></web-piano>
-</body>
-</html>
+<web-piano start-note="C4" end-note="C5"></web-piano>
 ```
 
-### With Event Listeners
+### JavaScript
 
 ```javascript
-import { html, render } from 'lit';
-import './web-piano.js';
+import 'web-piano/web-piano.js';
 
 const piano = document.querySelector('web-piano');
 
-// Listen for note strikes
-piano.addEventListener('key-strike', (e) => {
-  console.log('Note pressed:', e.detail); // e.g., "C4"
+piano.addEventListener('note-on', (e) => {
+  console.log(e.detail); // { note: "C4", midi: 60, velocity: 80 }
 });
 
-// Listen for note releases
-piano.addEventListener('key-release', (e) => {
-  console.log('Note released:', e.detail); // e.g., "C4"
+piano.addEventListener('note-off', (e) => {
+  console.log(e.detail); // { note: "C4", midi: 60 }
 });
 ```
 
+### Programmatic highlighting
+
+```javascript
+import { WebPiano } from 'web-piano';
+
+const piano = document.querySelector('web-piano');
+piano.activeNotes = ['C4', 'E4', 'G4']; // highlight a chord
+```
+
+### React
+
+```jsx
+import 'web-piano/web-piano.js';
+
+function App() {
+  return (
+    <web-piano
+      start-note="C3"
+      end-note="C5"
+      show-labels
+      onNote-on={(e) => console.log(e.detail)}
+    />
+  );
+}
+```
+
+### Vue
+
+```vue
+<template>
+  <web-piano
+    start-note="C3"
+    end-note="C5"
+    @note-on="onNoteOn"
+  />
+</template>
+
+<script setup>
+import 'web-piano/web-piano.js';
+
+function onNoteOn(e) {
+  console.log(e.detail);
+}
+</script>
+```
+
+## Properties
+
+| Attribute | Property | Type | Default | Description |
+|-----------|----------|------|---------|-------------|
+| `start-note` | `startNote` | `string` | `"A0"` | First note (inclusive) |
+| `end-note` | `endNote` | `string` | `"C8"` | Last note (inclusive) |
+| — | `activeNotes` | `string[]` | `[]` | Highlight notes programmatically |
+| `show-labels` | `showLabels` | `boolean` | `false` | Show note names on keys |
+| `enable-midi` | `enableMidi` | `boolean` | `true` | Connect to MIDI devices |
+| `enable-keyboard` | `enableKeyboard` | `boolean` | `true` | Enable computer keyboard input |
+
+## Events
+
+### `note-on`
+
+Fired when a note begins playing.
+
+```typescript
+interface NoteOnDetail {
+  note: string;    // "C4", "Db5", etc.
+  midi: number;    // MIDI note number (0-127)
+  velocity: number; // 0-127
+}
+```
+
+### `note-off`
+
+Fired when a note stops playing.
+
+```typescript
+interface NoteOffDetail {
+  note: string;
+  midi: number;
+}
+```
+
+Both events have `bubbles: true` and `composed: true`, so they cross shadow DOM boundaries.
+
+## Styling
+
+### CSS custom properties
+
+```css
+web-piano {
+  height: 200px;
+  --key-white-color: #fff;
+  --key-black-color: #222;
+  --key-active-color: #4a87fa;
+  --key-border-color: #333;
+  --key-label-color: #999;
+  --key-label-active-color: #fff;
+}
+```
+
+### CSS `::part()` selectors
+
+```css
+web-piano::part(white-key) {
+  background: ivory;
+}
+
+web-piano::part(black-key) {
+  background: #1a1a2e;
+}
+
+web-piano::part(key):hover {
+  filter: brightness(0.95);
+}
+```
+
+Available parts: `key`, `white-key`, `black-key`.
+
 ## Keyboard Mapping
 
-The following keyboard keys map to piano notes:
+The component must be focused to receive keyboard input. Click the piano first.
 
 | Key | Note | Key | Note | Key | Note |
 |-----|------|-----|------|-----|------|
@@ -74,107 +182,21 @@ The following keyboard keys map to piano notes:
 | K | C5 | O | Db5 | L | D5 |
 | P | Eb5 | ; | E5 |
 
-**Note**: The component must be focused to receive keyboard input.
+## MIDI
 
-## Styling
+The component connects to MIDI devices automatically via the Web MIDI API. MIDI input works regardless of focus state.
 
-Customize the appearance using CSS custom properties:
-
-```css
-web-piano {
-  --background-color: blue;
-  --indicator-color: #EEB0B0;
-  height: 200px;
-  width: 100%;
-}
-
-/* Indicator turns green when focused */
-web-piano:focus {
-  --indicator-color: #22FF47;
-}
-```
-
-## MIDI Support
-
-The component automatically detects and connects to MIDI devices via the Web MIDI API. Simply connect a MIDI keyboard to your computer, and it will work automatically when the component is focused.
-
-**Browser Support**: MIDI support requires a browser that implements the Web MIDI API (Chrome, Edge, Opera).
-
-## Events
-
-The component dispatches custom events:
-
-### `key-strike`
-
-Fired when a note begins playing.
-
-```javascript
-piano.addEventListener('key-strike', (event) => {
-  const note = event.detail; // "C4", "Db5", etc.
-});
-```
-
-### `key-release`
-
-Fired when a note stops playing.
-
-```javascript
-piano.addEventListener('key-release', (event) => {
-  const note = event.detail; // "C4", "Db5", etc. 
-});
-```
+**Browser support:** Chrome, Edge, Firefox. Safari does not support Web MIDI.
 
 ## Development
 
-### Setup
-
 ```bash
 npm install
+npm start          # dev server at http://localhost:8000/demo/
+npm run build      # compile to dist/
+npm test           # run tests
 ```
-
-### Run Demo Server
-
-```bash
-npm start
-```
-
-Opens a development server at `http://localhost:8000/demo/`
-
-### Project Structure
-
-```
-webPiano/
-├── src/
-│   └── WebPiano.js          # Main component implementation
-├── demo/
-│   └── index.html           # Demo page
-├── index.js                 # Module exports
-├── web-piano.js             # Custom element registration
-├── custom-elements.json     # Web component metadata
-└── web-dev-server.config.mjs
-```
-
-## Contributing
-
-Contributions are welcome! The codebase is straightforward: 
-
-1. The main component logic is in `src/WebPiano.js`
-2. All 88 keys are rendered in the template
-3. Event handling supports keyboard, mouse, and MIDI inputs
-4. Uses Tonal library for note name handling
-
-## Browser Support
-
-- Modern browsers with Web Components support
-- Optional: Web MIDI API for MIDI device support (Chrome, Edge, Opera)
-
-## Dependencies
-
-- **lit**: Efficient web component base class and rendering
-- **tonal**: Music theory library for note name handling
 
 ## License
 
-MIT License - Copyright (c) 2023 web-piano
-
-See [LICENSE](LICENSE) for full text.
+MIT

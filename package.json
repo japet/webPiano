@@ -1,27 +1,46 @@
 {
   "name": "web-piano",
-  "description": "Webcomponent web-piano following open-wc recommendations",
+  "description": "An interactive piano web component with configurable range, multi-touch support, and MIDI input",
   "license": "MIT",
   "author": "web-piano",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
-  "main": "index.js",
-  "module": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./index.js",
-    "./web-piano.js": "./web-piano.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./web-piano.js": {
+      "types": "./dist/web-piano.d.ts",
+      "default": "./dist/web-piano.js"
+    }
   },
+  "files": [
+    "dist/",
+    "custom-elements.json"
+  ],
   "scripts": {
+    "build": "tsup",
+    "dev": "web-dev-server",
+    "start": "web-dev-server",
+    "test": "web-test-runner",
     "analyze": "cem analyze --litelement",
-    "start": "web-dev-server"
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "lit": "^2.0.2",
-    "tonal": "^4.14.0"
+    "lit": "^3.0.0"
   },
   "devDependencies": {
     "@custom-elements-manifest/analyzer": "^0.4.17",
-    "@web/dev-server": "^0.1.34"
+    "@esm-bundle/chai": "^4.3.4-fix.0",
+    "@open-wc/testing": "^4.0.0",
+    "@web/dev-server": "^0.4.0",
+    "@web/dev-server-esbuild": "^1.0.0",
+    "@web/test-runner": "^0.18.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
   },
   "customElements": "custom-elements.json"
 }

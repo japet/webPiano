@@ -36,5 +36,8 @@
 ehthumbs.db
 Thumbs.db
 
+# Build output
+dist/
+
 # Dependency directories
 node_modules/

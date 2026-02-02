@@ -1,29 +1,157 @@
 <!doctype html>
-<html lang="en-GB">
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>web-piano demo</title>
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      background: #fafafa;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      padding: 24px;
+      min-height: 100vh;
     }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 16px;
+      color: #ccc;
+    }
+
+    .demo-section {
+      margin-bottom: 32px;
+    }
+
+    .demo-section h2 {
+      font-size: 1rem;
+      color: #999;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    web-piano {
+      height: 160px;
+      margin-bottom: 12px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    button {
+      padding: 6px 14px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #2a2a3e;
+      color: #eee;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    button:hover { background: #3a3a4e; }
+    button.active { border-color: #4a87fa; color: #4a87fa; }
+
+    #event-log {
+      background: #0d0d1a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      height: 120px;
+      overflow-y: auto;
+      color: #aaa;
+    }
+
+    #event-log .note-on { color: #4aefa7; }
+    #event-log .note-off { color: #ef4a6a; }
   </style>
 </head>
 <body>
-  <div id="demo"></div>
+  <h1>web-piano</h1>
+
+  <div class="demo-section">
+    <h2>Full 88-key piano</h2>
+    <web-piano id="piano-full"></web-piano>
+  </div>
+
+  <div class="demo-section">
+    <h2>Configurable range</h2>
+    <div class="controls">
+      <button data-start="C3" data-end="C5">2 octaves (C3-C5)</button>
+      <button data-start="C4" data-end="C5" class="active">1 octave (C4-C5)</button>
+      <button data-start="A0" data-end="C8">Full piano</button>
+    </div>
+    <web-piano id="piano-range" start-note="C4" end-note="C5"></web-piano>
+  </div>
+
+  <div class="demo-section">
+    <h2>Options</h2>
+    <div class="controls">
+      <button id="btn-labels">Toggle labels</button>
+      <button id="btn-chord">Highlight C major chord</button>
+      <button id="btn-clear">Clear highlights</button>
+    </div>
+    <web-piano id="piano-options" start-note="C4" end-note="C5"></web-piano>
+  </div>
+
+  <div class="demo-section">
+    <h2>Event log</h2>
+    <div id="event-log"></div>
+  </div>
 
   <script type="module">
-    import { html, render } from 'lit';
-    import '../web-piano.js';
+    import '../src/web-piano.ts';
 
-    const title = 'Hello owc World!';
-    render(
-      html`
-        <web-piano .title=${title}>
-          some light-dom
-        </web-piano>
-      `,
-      document.querySelector('#demo')
-    );
+    const pianoFull = document.getElementById('piano-full');
+    const pianoRange = document.getElementById('piano-range');
+    const pianoOptions = document.getElementById('piano-options');
+    const eventLog = document.getElementById('event-log');
+
+    // Range controls
+    document.querySelectorAll('[data-start]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-start]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        pianoRange.setAttribute('start-note', btn.dataset.start);
+        pianoRange.setAttribute('end-note', btn.dataset.end);
+      });
+    });
+
+    // Option controls
+    document.getElementById('btn-labels').addEventListener('click', () => {
+      pianoOptions.showLabels = !pianoOptions.showLabels;
+    });
+
+    document.getElementById('btn-chord').addEventListener('click', () => {
+      pianoOptions.activeNotes = ['C4', 'E4', 'G4'];
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      pianoOptions.activeNotes = [];
+    });
+
+    // Event logging from all pianos
+    function logEvent(type, detail) {
+      const div = document.createElement('div');
+      div.className = type;
+      const vel = detail.velocity !== undefined ? ` vel=${detail.velocity}` : '';
+      div.textContent = `${type}: ${detail.note} (midi ${detail.midi}${vel})`;
+      eventLog.prepend(div);
+      if (eventLog.children.length > 50) {
+        eventLog.lastChild.remove();
+      }
+    }
+
+    document.addEventListener('note-on', e => logEvent('note-on', e.detail));
+    document.addEventListener('note-off', e => logEvent('note-off', e.detail));
   </script>
 </body>
 </html>
