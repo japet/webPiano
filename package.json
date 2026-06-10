@@ -3,7 +3,7 @@
   "description": "An interactive piano web component with configurable range, multi-touch support, and MIDI input",
   "license": "MIT",
   "author": "web-piano",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
