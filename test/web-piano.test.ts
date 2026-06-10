@@ -223,6 +223,139 @@ describe('WebPiano', () => {
     });
   });
 
+  describe('keyboard input', () => {
+    function trackEvents(el: WebPiano) {
+      const ons: any[] = [];
+      const offs: any[] = [];
+      el.addEventListener('note-on', ((e: CustomEvent) => ons.push(e.detail)) as EventListener);
+      el.addEventListener('note-off', ((e: CustomEvent) => offs.push(e.detail)) as EventListener);
+      return { ons, offs };
+    }
+
+    function pressKey(el: WebPiano, key: string): void {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key }));
+    }
+
+    function releaseKey(el: WebPiano, key: string): void {
+      el.dispatchEvent(new KeyboardEvent('keyup', { key }));
+    }
+
+    it('plays a note on keydown and releases on keyup', async () => {
+      const el = createElement();
+      await waitForUpdate(el);
+      const { ons, offs } = trackEvents(el);
+
+      pressKey(el, 'a');
+      expect(ons).to.have.length(1);
+      expect(ons[0].note).to.equal('C4');
+
+      releaseKey(el, 'a');
+      expect(offs).to.have.length(1);
+      expect(offs[0].note).to.equal('C4');
+    });
+
+    it('shifts the octave up with x and down with z', async () => {
+      const el = createElement();
+      await waitForUpdate(el);
+      const { ons } = trackEvents(el);
+
+      pressKey(el, 'x');
+      pressKey(el, 'a');
+      releaseKey(el, 'a');
+      expect(ons[0].note).to.equal('C5');
+
+      pressKey(el, 'z');
+      pressKey(el, 'z');
+      pressKey(el, 'a');
+      expect(ons[1].note).to.equal('C3');
+    });
+
+    it('releases the originally struck note if the octave changes while held', async () => {
+      const el = createElement();
+      await waitForUpdate(el);
+      const { offs } = trackEvents(el);
+
+      pressKey(el, 'a'); // C4 on
+      pressKey(el, 'x'); // shift up while held
+      releaseKey(el, 'a');
+
+      expect(offs).to.have.length(1);
+      expect(offs[0].note).to.equal('C4');
+    });
+  });
+
+  describe('MIDI messages', () => {
+    function midiMessage(el: WebPiano, bytes: number[]): void {
+      (el as any)._onMidiMessage({ data: new Uint8Array(bytes) });
+    }
+
+    function trackEvents(el: WebPiano) {
+      const ons: any[] = [];
+      const offs: any[] = [];
+      el.addEventListener('note-on', ((e: CustomEvent) => ons.push(e.detail)) as EventListener);
+      el.addEventListener('note-off', ((e: CustomEvent) => offs.push(e.detail)) as EventListener);
+      return { ons, offs };
+    }
+
+    it('plays and releases notes from MIDI messages', async () => {
+      const el = createElement();
+      await waitForUpdate(el);
+      const { ons, offs } = trackEvents(el);
+
+      midiMessage(el, [0x90, 60, 100]); // note on C4
+      expect(ons).to.have.length(1);
+      expect(ons[0]).to.deep.equal({ note: 'C4', midi: 60, velocity: 100 });
+
+      midiMessage(el, [0x80, 60, 0]); // note off C4
+      expect(offs).to.have.length(1);
+      expect(offs[0]).to.deep.equal({ note: 'C4', midi: 60 });
+    });
+
+    it('sustain pedal defers note-off until the pedal is released', async () => {
+      const el = createElement();
+      await waitForUpdate(el);
+      const { offs } = trackEvents(el);
+
+      midiMessage(el, [0xb0, 64, 127]); // pedal down
+      midiMessage(el, [0x90, 60, 100]); // note on
+      midiMessage(el, [0x80, 60, 0]);   // note off — deferred
+      expect(offs).to.have.length(0);
+
+      midiMessage(el, [0xb0, 64, 0]);   // pedal up
+      expect(offs).to.have.length(1);
+      expect(offs[0].midi).to.equal(60);
+    });
+
+    it('re-striking a sustained note retriggers it', async () => {
+      const el = createElement();
+      await waitForUpdate(el);
+      const { ons, offs } = trackEvents(el);
+
+      midiMessage(el, [0xb0, 64, 127]); // pedal down
+      midiMessage(el, [0x90, 60, 100]); // note on
+      midiMessage(el, [0x80, 60, 0]);   // note off — sustained
+      midiMessage(el, [0x90, 60, 90]);  // strike again while sustained
+
+      expect(offs).to.have.length(1);  // sustained instance ended
+      expect(ons).to.have.length(2);   // new instance started
+      expect(ons[1].velocity).to.equal(90);
+
+      midiMessage(el, [0x80, 60, 0]);  // note off — sustained again
+      midiMessage(el, [0xb0, 64, 0]);  // pedal up
+      expect(offs).to.have.length(2);
+    });
+
+    it('does not hold a note pressed by sustain after release without pedal', async () => {
+      const el = createElement();
+      await waitForUpdate(el);
+      const { offs } = trackEvents(el);
+
+      midiMessage(el, [0x90, 60, 100]);
+      midiMessage(el, [0x80, 60, 0]);
+      expect(offs).to.have.length(1);
+    });
+  });
+
   describe('cleanup', () => {
     it('removes element cleanly', async () => {
       const el = createElement();

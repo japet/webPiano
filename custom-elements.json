@@ -4,7 +4,583 @@
   "modules": [
     {
       "kind": "javascript-module",
-      "path": "index.js",
+      "path": "src/WebPiano.ts",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "",
+          "name": "WebPiano",
+          "members": [
+            {
+              "kind": "field",
+              "name": "startNote",
+              "type": {
+                "text": "string"
+              },
+              "default": "'A0'",
+              "description": "First note of the keyboard range (inclusive).",
+              "attribute": "start-note"
+            },
+            {
+              "kind": "field",
+              "name": "endNote",
+              "type": {
+                "text": "string"
+              },
+              "default": "'C8'",
+              "description": "Last note of the keyboard range (inclusive).",
+              "attribute": "end-note"
+            },
+            {
+              "kind": "field",
+              "name": "activeNotes",
+              "type": {
+                "text": "string[]"
+              },
+              "default": "[]",
+              "description": "Notes to highlight externally (e.g., for showing chords or scales)."
+            },
+            {
+              "kind": "field",
+              "name": "showLabels",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Show note name labels on keys.",
+              "attribute": "show-labels"
+            },
+            {
+              "kind": "field",
+              "name": "enableMidi",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "true",
+              "description": "Enable Web MIDI device input.",
+              "attribute": "enable-midi"
+            },
+            {
+              "kind": "field",
+              "name": "enableKeyboard",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "true",
+              "description": "Enable computer keyboard input.",
+              "attribute": "enable-keyboard"
+            },
+            {
+              "kind": "field",
+              "name": "_pressedKeys",
+              "privacy": "private",
+              "default": "new Set<number>()",
+              "description": "MIDI numbers currently pressed by user interaction.\nMutated in place with an explicit requestUpdate() to avoid copying\nthe Set on every note event."
+            },
+            {
+              "kind": "field",
+              "name": "_keyData",
+              "type": {
+                "text": "KeyData[]"
+              },
+              "privacy": "private",
+              "default": "[]",
+              "description": "Per-key render data, recomputed only when the note range changes."
+            },
+            {
+              "kind": "field",
+              "name": "_activeMidiSet",
+              "privacy": "private",
+              "default": "new Set<number>()",
+              "description": "Parsed activeNotes, recomputed only when the property changes."
+            },
+            {
+              "kind": "field",
+              "name": "_activePointers",
+              "privacy": "private",
+              "default": "new Map<number, number | null>()",
+              "description": "Map of pointerId to the MIDI note currently under that pointer."
+            },
+            {
+              "kind": "field",
+              "name": "_keyboardOctaveShift",
+              "type": {
+                "text": "number"
+              },
+              "privacy": "private",
+              "default": "0",
+              "description": "Octave shift applied to computer keyboard input (Z/X to change)."
+            },
+            {
+              "kind": "field",
+              "name": "_keyboardHeldNotes",
+              "privacy": "private",
+              "default": "new Map<string, number>()",
+              "description": "Map of keyboard event.key to the MIDI note it struck (accounts for octave shift)."
+            },
+            {
+              "kind": "field",
+              "name": "_sustainOn",
+              "type": {
+                "text": "boolean"
+              },
+              "privacy": "private",
+              "default": "false",
+              "description": "Whether the MIDI sustain pedal (CC 64) is down."
+            },
+            {
+              "kind": "field",
+              "name": "_sustainedNotes",
+              "privacy": "private",
+              "default": "new Set<number>()",
+              "description": "Notes whose release was deferred by the sustain pedal."
+            },
+            {
+              "kind": "field",
+              "name": "_midiAccess",
+              "type": {
+                "text": "MIDIAccess | null"
+              },
+              "privacy": "private",
+              "default": "null",
+              "description": "MIDI access object, if available."
+            },
+            {
+              "kind": "field",
+              "name": "_boundKeyDown",
+              "privacy": "private",
+              "description": "Bound handlers for cleanup."
+            },
+            {
+              "kind": "field",
+              "name": "_boundKeyUp",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "_boundBlur",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "_boundMidiMessage",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "_boundMidiStateChange",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "_rebuildKeyData",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "_initMidi",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "Promise<void>"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "_cleanupMidi",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "_onMidiStateChange",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "event",
+                  "type": {
+                    "text": "Event"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_onMidiMessage",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "event",
+                  "type": {
+                    "text": "Event"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_onKeyDown",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "event",
+                  "type": {
+                    "text": "KeyboardEvent"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_onKeyUp",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "event",
+                  "type": {
+                    "text": "KeyboardEvent"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_onBlur",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "_onPointerDown",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "event",
+                  "type": {
+                    "text": "PointerEvent"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_onPointerMove",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "event",
+                  "type": {
+                    "text": "PointerEvent"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_onPointerUp",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "event",
+                  "type": {
+                    "text": "PointerEvent"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_keyFromPoint",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "HTMLElement | null"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "x",
+                  "type": {
+                    "text": "number"
+                  }
+                },
+                {
+                  "name": "y",
+                  "type": {
+                    "text": "number"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_velocityFromEvent",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "number"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "event",
+                  "type": {
+                    "text": "PointerEvent"
+                  }
+                },
+                {
+                  "name": "key",
+                  "type": {
+                    "text": "HTMLElement"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_strikeNote",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "midi",
+                  "type": {
+                    "text": "number"
+                  }
+                },
+                {
+                  "name": "velocity",
+                  "type": {
+                    "text": "number"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_releaseNote",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "midi",
+                  "type": {
+                    "text": "number"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_setSustain",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "on",
+                  "type": {
+                    "text": "boolean"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_dispatchNoteOn",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "midi",
+                  "type": {
+                    "text": "number"
+                  }
+                },
+                {
+                  "name": "velocity",
+                  "type": {
+                    "text": "number"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "_dispatchNoteOff",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "midi",
+                  "type": {
+                    "text": "number"
+                  }
+                }
+              ]
+            }
+          ],
+          "events": [
+            {
+              "name": "note-on",
+              "type": {
+                "text": "CustomEvent"
+              }
+            },
+            {
+              "name": "note-off",
+              "type": {
+                "text": "CustomEvent"
+              }
+            }
+          ],
+          "attributes": [
+            {
+              "name": "start-note",
+              "type": {
+                "text": "string"
+              },
+              "default": "'A0'",
+              "description": "First note of the keyboard range (inclusive).",
+              "fieldName": "startNote"
+            },
+            {
+              "name": "end-note",
+              "type": {
+                "text": "string"
+              },
+              "default": "'C8'",
+              "description": "Last note of the keyboard range (inclusive).",
+              "fieldName": "endNote"
+            },
+            {
+              "name": "show-labels",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "Show note name labels on keys.",
+              "fieldName": "showLabels"
+            },
+            {
+              "name": "enable-midi",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "true",
+              "description": "Enable Web MIDI device input.",
+              "fieldName": "enableMidi"
+            },
+            {
+              "name": "enable-keyboard",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "true",
+              "description": "Enable computer keyboard input.",
+              "fieldName": "enableKeyboard"
+            }
+          ],
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "tagName": "web-piano",
+          "customElement": true
+        },
+        {
+          "kind": "variable",
+          "name": "midi",
+          "default": "data[1]"
+        },
+        {
+          "kind": "variable",
+          "name": "velocity",
+          "default": "data[2]"
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "WebPiano",
+          "declaration": {
+            "name": "WebPiano",
+            "module": "src/WebPiano.ts"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "src/index.ts",
       "declarations": [],
       "exports": [
         {
@@ -12,14 +588,142 @@
           "name": "WebPiano",
           "declaration": {
             "name": "WebPiano",
-            "module": "./src/WebPiano.js"
+            "module": "./WebPiano.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "NoteOnDetail",
+          "declaration": {
+            "name": "NoteOnDetail",
+            "module": "./WebPiano.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "NoteOffDetail",
+          "declaration": {
+            "name": "NoteOffDetail",
+            "module": "./WebPiano.js"
           }
         }
       ]
     },
     {
       "kind": "javascript-module",
-      "path": "web-piano.js",
+      "path": "src/note-utils.ts",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "midiToNoteName",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "midi",
+              "type": {
+                "text": "number"
+              }
+            }
+          ],
+          "description": "Convert a MIDI note number to a note name string.\nE.g., 60 → \"C4\", 61 → \"Db4\""
+        },
+        {
+          "kind": "function",
+          "name": "noteNameToMidi",
+          "return": {
+            "type": {
+              "text": "number"
+            }
+          },
+          "parameters": [
+            {
+              "name": "name",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "description": "Convert a note name string to a MIDI note number.\nE.g., \"C4\" → 60, \"Db4\" → 61"
+        },
+        {
+          "kind": "function",
+          "name": "isBlackKey",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "parameters": [
+            {
+              "name": "midi",
+              "type": {
+                "text": "number"
+              }
+            }
+          ],
+          "description": "Returns true if the MIDI note is a black key (sharp/flat)."
+        },
+        {
+          "kind": "function",
+          "name": "noteLabel",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "midi",
+              "type": {
+                "text": "number"
+              }
+            }
+          ],
+          "description": "Returns an accessible label for a MIDI note.\nE.g., 61 → \"D flat 4\", 60 → \"C 4\""
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "midiToNoteName",
+          "declaration": {
+            "name": "midiToNoteName",
+            "module": "src/note-utils.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "noteNameToMidi",
+          "declaration": {
+            "name": "noteNameToMidi",
+            "module": "src/note-utils.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "isBlackKey",
+          "declaration": {
+            "name": "isBlackKey",
+            "module": "src/note-utils.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "noteLabel",
+          "declaration": {
+            "name": "noteLabel",
+            "module": "src/note-utils.ts"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "src/web-piano.ts",
       "declarations": [],
       "exports": [
         {
@@ -29,68 +733,13 @@
             "name": "WebPiano",
             "module": "/src/WebPiano.js"
           }
-        }
-      ]
-    },
-    {
-      "kind": "javascript-module",
-      "path": "src/WebPiano.js",
-      "declarations": [
-        {
-          "kind": "class",
-          "description": "",
-          "name": "WebPiano",
-          "members": [
-            {
-              "kind": "method",
-              "name": "__increment"
-            },
-            {
-              "kind": "field",
-              "name": "header",
-              "type": {
-                "text": "string"
-              },
-              "default": "'Hey there'",
-              "privacy": "public",
-              "attribute": "header"
-            },
-            {
-              "kind": "field",
-              "name": "counter",
-              "type": {
-                "text": "number"
-              },
-              "default": "5",
-              "privacy": "public",
-              "attribute": "counter"
-            }
-          ],
-          "attributes": [
-            {
-              "name": "header",
-              "fieldName": "header"
-            },
-            {
-              "name": "counter",
-              "fieldName": "counter"
-            }
-          ],
-          "superclass": {
-            "name": "LitElement",
-            "package": "lit"
-          },
-          "tagName": "web-piano",
-          "customElement": true
-        }
-      ],
-      "exports": [
+        },
         {
           "kind": "js",
           "name": "WebPiano",
           "declaration": {
             "name": "WebPiano",
-            "module": "src/WebPiano.js"
+            "module": "src/web-piano.ts"
           }
         }
       ]

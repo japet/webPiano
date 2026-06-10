@@ -1,6 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
-import { property, state } from 'lit/decorators.js';
-import { classMap } from 'lit/directives/class-map.js';
+import { property } from 'lit/decorators.js';
 import { midiToNoteName, noteNameToMidi, isBlackKey, noteLabel } from './note-utils.js';
 
 export interface NoteOnDetail {
@@ -19,6 +18,14 @@ const DEFAULT_KEYBOARD_MAP: Record<string, string> = {
   t: 'Gb4', g: 'G4', y: 'Ab4', h: 'A4', u: 'Bb4', j: 'B4',
   k: 'C5', o: 'Db5', l: 'D5', p: 'Eb5', ';': 'E5',
 };
+
+interface KeyData {
+  midi: number;
+  noteName: string;
+  label: string;
+  part: string;
+  baseClass: string;
+}
 
 export class WebPiano extends LitElement {
   static styles = css`
@@ -50,6 +57,7 @@ export class WebPiano extends LitElement {
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
+      contain: content;
     }
 
     .key {
@@ -124,12 +132,33 @@ export class WebPiano extends LitElement {
   @property({ type: Boolean, attribute: 'enable-keyboard' })
   enableKeyboard = true;
 
-  /** MIDI numbers currently pressed by user interaction. */
-  @state()
+  /**
+   * MIDI numbers currently pressed by user interaction.
+   * Mutated in place with an explicit requestUpdate() to avoid copying
+   * the Set on every note event.
+   */
   private _pressedKeys = new Set<number>();
+
+  /** Per-key render data, recomputed only when the note range changes. */
+  private _keyData: KeyData[] = [];
+
+  /** Parsed activeNotes, recomputed only when the property changes. */
+  private _activeMidiSet = new Set<number>();
 
   /** Map of pointerId to the MIDI note currently under that pointer. */
   private _activePointers = new Map<number, number | null>();
+
+  /** Octave shift applied to computer keyboard input (Z/X to change). */
+  private _keyboardOctaveShift = 0;
+
+  /** Map of keyboard event.key to the MIDI note it struck (accounts for octave shift). */
+  private _keyboardHeldNotes = new Map<string, number>();
+
+  /** Whether the MIDI sustain pedal (CC 64) is down. */
+  private _sustainOn = false;
+
+  /** Notes whose release was deferred by the sustain pedal. */
+  private _sustainedNotes = new Set<number>();
 
   /** MIDI access object, if available. */
   private _midiAccess: MIDIAccess | null = null;
@@ -139,6 +168,7 @@ export class WebPiano extends LitElement {
   private _boundKeyUp = this._onKeyUp.bind(this);
   private _boundBlur = this._onBlur.bind(this);
   private _boundMidiMessage = this._onMidiMessage.bind(this);
+  private _boundMidiStateChange = this._onMidiStateChange.bind(this);
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -159,32 +189,67 @@ export class WebPiano extends LitElement {
 
   protected willUpdate(changed: PropertyValues): void {
     if (changed.has('startNote') || changed.has('endNote')) {
-      const whiteCount = this._countWhiteKeys();
-      this.style.setProperty('--white-key-count', String(whiteCount));
+      this._rebuildKeyData();
+    }
+    if (changed.has('activeNotes')) {
+      const set = new Set<number>();
+      for (const n of this.activeNotes) {
+        try { set.add(noteNameToMidi(n)); } catch { /* ignore invalid names */ }
+      }
+      this._activeMidiSet = set;
     }
   }
 
-  private _countWhiteKeys(): number {
+  protected updated(changed: PropertyValues): void {
+    // Skip the first update (old value undefined) — connectedCallback handles init.
+    if (changed.has('enableMidi') && changed.get('enableMidi') !== undefined) {
+      if (this.enableMidi) {
+        this._initMidi();
+      } else {
+        this._cleanupMidi();
+      }
+    }
+  }
+
+  private _rebuildKeyData(): void {
     const start = noteNameToMidi(this.startNote);
     const end = noteNameToMidi(this.endNote);
-    let count = 0;
-    for (let m = start; m <= end; m++) {
-      if (!isBlackKey(m)) count++;
+    const keys: KeyData[] = [];
+    let whiteCount = 0;
+    for (let midi = start; midi <= end; midi++) {
+      const black = isBlackKey(midi);
+      if (!black) whiteCount++;
+      keys.push({
+        midi,
+        noteName: midiToNoteName(midi),
+        label: noteLabel(midi),
+        part: black ? 'key black-key' : 'key white-key',
+        baseClass: black ? 'key black' : 'key white',
+      });
     }
-    return count;
+    this._keyData = keys;
+    this.style.setProperty('--white-key-count', String(whiteCount));
   }
 
   // --- MIDI ---
 
   private async _initMidi(): Promise<void> {
-    if (!this.enableMidi) return;
-    if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) return;
+    if (!this.enableMidi || this._midiAccess) return;
+    if (typeof navigator === 'undefined') return;
+    if (!navigator.requestMIDIAccess) {
+      console.warn('Web MIDI not available: this browser does not support the Web MIDI API.');
+      return;
+    }
 
     try {
-      this._midiAccess = await navigator.requestMIDIAccess();
-      this._midiAccess.inputs.forEach(input => {
+      const access = await navigator.requestMIDIAccess();
+      // enableMidi may have been turned off while awaiting access
+      if (!this.enableMidi || this._midiAccess) return;
+      this._midiAccess = access;
+      access.inputs.forEach(input => {
         input.addEventListener('midimessage', this._boundMidiMessage);
       });
+      access.addEventListener('statechange', this._boundMidiStateChange);
     } catch (err) {
       console.warn('Web MIDI not available:', err);
     }
@@ -192,10 +257,22 @@ export class WebPiano extends LitElement {
 
   private _cleanupMidi(): void {
     if (this._midiAccess) {
+      this._midiAccess.removeEventListener('statechange', this._boundMidiStateChange);
       this._midiAccess.inputs.forEach(input => {
         input.removeEventListener('midimessage', this._boundMidiMessage);
       });
       this._midiAccess = null;
+    }
+    this._setSustain(false);
+  }
+
+  private _onMidiStateChange(event: Event): void {
+    const port = (event as MIDIConnectionEvent).port;
+    if (!port || port.type !== 'input') return;
+    if (port.state === 'connected') {
+      // addEventListener dedupes the same handler reference, so devices
+      // already wired up are unaffected.
+      (port as MIDIInput).addEventListener('midimessage', this._boundMidiMessage);
     }
   }
 
@@ -212,6 +289,9 @@ export class WebPiano extends LitElement {
       this._strikeNote(midi, velocity);
     } else if (status === 0x80 || (status === 0x90 && velocity === 0)) {
       this._releaseNote(midi);
+    } else if (status === 0xb0 && data[1] === 64) {
+      // Sustain pedal (CC 64): value >= 64 means down
+      this._setSustain(data[2] >= 64);
     }
   }
 
@@ -221,12 +301,18 @@ export class WebPiano extends LitElement {
     if (!this.enableKeyboard) return;
     if (event.repeat) return;
 
+    if (event.key === 'z' || event.key === 'x') {
+      const delta = event.key === 'z' ? -1 : 1;
+      this._keyboardOctaveShift = Math.max(-3, Math.min(3, this._keyboardOctaveShift + delta));
+      event.preventDefault();
+      return;
+    }
+
     const noteName = DEFAULT_KEYBOARD_MAP[event.key];
     if (!noteName) return;
 
-    const midi = noteNameToMidi(noteName);
-    if (this._pressedKeys.has(midi)) return;
-
+    const midi = noteNameToMidi(noteName) + this._keyboardOctaveShift * 12;
+    this._keyboardHeldNotes.set(event.key, midi);
     this._strikeNote(midi, 80);
     event.preventDefault();
   }
@@ -234,10 +320,11 @@ export class WebPiano extends LitElement {
   private _onKeyUp(event: KeyboardEvent): void {
     if (!this.enableKeyboard) return;
 
-    const noteName = DEFAULT_KEYBOARD_MAP[event.key];
-    if (!noteName) return;
-
-    const midi = noteNameToMidi(noteName);
+    // Release the note this key actually struck, in case the octave
+    // shift changed while the key was held.
+    const midi = this._keyboardHeldNotes.get(event.key);
+    if (midi === undefined) return;
+    this._keyboardHeldNotes.delete(event.key);
     this._releaseNote(midi);
   }
 
@@ -246,8 +333,11 @@ export class WebPiano extends LitElement {
     for (const midi of this._pressedKeys) {
       this._dispatchNoteOff(midi);
     }
-    this._pressedKeys = new Set();
+    this._pressedKeys.clear();
     this._activePointers.clear();
+    this._keyboardHeldNotes.clear();
+    this._sustainedNotes.clear();
+    this.requestUpdate();
   }
 
   // --- Pointer input ---
@@ -320,23 +410,45 @@ export class WebPiano extends LitElement {
   // --- Note state management ---
 
   private _strikeNote(midi: number, velocity: number): void {
-    if (this._pressedKeys.has(midi)) return;
+    if (this._pressedKeys.has(midi)) {
+      if (!this._sustainedNotes.has(midi)) return;
+      // Re-strike of a note sounding only because of the sustain pedal:
+      // end the sustained instance and start a new one. The key stays
+      // visually pressed, so no re-render is needed.
+      this._sustainedNotes.delete(midi);
+      this._dispatchNoteOff(midi);
+      this._dispatchNoteOn(midi, velocity);
+      return;
+    }
 
-    const next = new Set(this._pressedKeys);
-    next.add(midi);
-    this._pressedKeys = next;
-
+    this._pressedKeys.add(midi);
+    this.requestUpdate();
     this._dispatchNoteOn(midi, velocity);
   }
 
   private _releaseNote(midi: number): void {
     if (!this._pressedKeys.has(midi)) return;
 
-    const next = new Set(this._pressedKeys);
-    next.delete(midi);
-    this._pressedKeys = next;
+    if (this._sustainOn) {
+      this._sustainedNotes.add(midi);
+      return;
+    }
 
+    this._pressedKeys.delete(midi);
+    this.requestUpdate();
     this._dispatchNoteOff(midi);
+  }
+
+  private _setSustain(on: boolean): void {
+    if (this._sustainOn === on) return;
+    this._sustainOn = on;
+    if (!on) {
+      const sustained = [...this._sustainedNotes];
+      this._sustainedNotes.clear();
+      for (const midi of sustained) {
+        this._releaseNote(midi);
+      }
+    }
   }
 
   private _dispatchNoteOn(midi: number, velocity: number): void {
@@ -367,30 +479,20 @@ export class WebPiano extends LitElement {
   // --- Render ---
 
   render() {
-    const startMidi = noteNameToMidi(this.startNote);
-    const endMidi = noteNameToMidi(this.endNote);
-    const activeSet = new Set(this.activeNotes.map(n => {
-      try { return noteNameToMidi(n); } catch { return -1; }
-    }));
-
-    const keys = [];
-    for (let midi = startMidi; midi <= endMidi; midi++) {
-      const noteName = midiToNoteName(midi);
-      const black = isBlackKey(midi);
-      const active = this._pressedKeys.has(midi) || activeSet.has(midi);
-
-      keys.push(html`
+    const keys = this._keyData.map(k => {
+      const active = this._pressedKeys.has(k.midi) || this._activeMidiSet.has(k.midi);
+      return html`
         <button
-          part=${black ? 'key black-key' : 'key white-key'}
-          class=${classMap({ key: true, black, white: !black, active })}
-          data-midi=${midi}
-          data-note=${noteName}
-          aria-label=${noteLabel(midi)}
+          part=${k.part}
+          class=${active ? `${k.baseClass} active` : k.baseClass}
+          data-midi=${k.midi}
+          data-note=${k.noteName}
+          aria-label=${k.label}
           aria-pressed=${String(active)}
           tabindex="-1"
-        >${this.showLabels ? noteName : nothing}</button>
-      `);
-    }
+        >${this.showLabels ? k.noteName : nothing}</button>
+      `;
+    });
 
     return html`
       <div
