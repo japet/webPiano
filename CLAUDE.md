@@ -66,10 +66,12 @@ npm run analyze    # regenerate custom-elements.json
 
 - MIDI numbers are the internal representation. Note name strings are the public-facing format.
 - `_pressedKeys` (internal `Set<number>`) tracks user-pressed notes. `activeNotes` (external prop) highlights notes programmatically. Rendered state is the union.
+- Performance: per-key render data (`_keyData`) is precomputed in `willUpdate` and only rebuilt when the range changes; `activeNotes` is parsed once per change into `_activeMidiSet`. `_pressedKeys` is intentionally mutated in place with an explicit `requestUpdate()` (not `@state`) to avoid copying the Set on every note event — don't "fix" this back to immutable updates.
 - Pointer events attach to the `.piano` container, not individual keys. `setPointerCapture` keeps tracking during drags. `elementFromPoint` determines which key the pointer is over.
 - Velocity is derived from vertical click position (top = soft, bottom = loud).
-- Keyboard maps 17 keys (A–; row) to C4–E5. Requires focus.
-- MIDI connects in `connectedCallback`, cleans up in `disconnectedCallback`. No focus required for MIDI.
+- Keyboard maps 17 keys (A–; row) to C4–E5. Z/X shift the octave down/up (clamped to ±3). Keyup releases the note the key actually struck (tracked in `_keyboardHeldNotes`), so shifting while holding a key can't strand notes. Requires focus.
+- MIDI connects in `connectedCallback`, cleans up in `disconnectedCallback`. Hot-plugged devices are picked up via the `statechange` event on `MIDIAccess`. `enableMidi` can be toggled at runtime (handled in `updated()`). No focus required for MIDI.
+- Sustain pedal (MIDI CC 64) defers note releases: `_releaseNote` parks the note in `_sustainedNotes` while the pedal is down; pedal-up releases them. Re-striking a sustained note dispatches note-off then note-on.
 - On blur, all pressed keys are released to prevent stuck notes.
 
 ## Known Gotchas

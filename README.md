@@ -54,8 +54,6 @@ piano.addEventListener('note-off', (e) => {
 ### Programmatic highlighting
 
 ```javascript
-import { WebPiano } from 'web-piano';
-
 const piano = document.querySelector('web-piano');
 piano.activeNotes = ['C4', 'E4', 'G4']; // highlight a chord
 ```
@@ -63,19 +61,24 @@ piano.activeNotes = ['C4', 'E4', 'G4']; // highlight a chord
 ### React
 
 ```jsx
+import { useEffect, useRef } from 'react';
 import 'web-piano/web-piano.js';
 
 function App() {
-  return (
-    <web-piano
-      start-note="C3"
-      end-note="C5"
-      show-labels
-      onNote-on={(e) => console.log(e.detail)}
-    />
-  );
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const piano = ref.current;
+    const onNoteOn = (e) => console.log(e.detail);
+    piano.addEventListener('note-on', onNoteOn);
+    return () => piano.removeEventListener('note-on', onNoteOn);
+  }, []);
+
+  return <web-piano ref={ref} start-note="C3" end-note="C5" show-labels />;
 }
 ```
+
+React does not attach listeners for custom events via JSX props, so use a ref as shown above.
 
 ### Vue
 
@@ -182,9 +185,13 @@ The component must be focused to receive keyboard input. Click the piano first.
 | K | C5 | O | Db5 | L | D5 |
 | P | Eb5 | ; | E5 |
 
+Press **Z** to shift the mapping down an octave and **X** to shift it up (up to ±3 octaves).
+
 ## MIDI
 
-The component connects to MIDI devices automatically via the Web MIDI API. MIDI input works regardless of focus state.
+The component connects to MIDI devices automatically via the Web MIDI API, including devices plugged in after the page loads. MIDI input works regardless of focus state.
+
+The sustain pedal (CC 64) is supported: while the pedal is down, `note-off` events are deferred until the pedal is released, and keys stay visually pressed.
 
 **Browser support:** Chrome, Edge, Firefox. Safari does not support Web MIDI.
 

@@ -1,62 +1,64 @@
 # webPiano
 
-A Lit-based web component (`<web-piano>`) that renders an 88-key piano with keyboard, mouse, and MIDI input support. Dispatches `key-strike` and `key-release` custom events with note names as detail.
+An interactive piano web component (`<web-piano>`) built with Lit 3 and TypeScript. Published to npm as `web-piano`. Supports three input methods: computer keyboard, mouse/touch (multi-touch and glissando), and MIDI devices.
 
 ## Architecture
 
-- `src/WebPiano.js` — Single-file component extending LitElement. Contains all UI, event handling, and MIDI integration logic.
-- `index.js` — Re-exports WebPiano class for programmatic use.
-- `web-piano.js` — Registers the custom element as `<web-piano>`.
-- `demo/index.html` — Basic usage example with Lit's render function. 
-- `web-dev-server.config.mjs` — Dev server config with nodeResolve enabled, opens to /demo/. 
-- `custom-elements.json` — Web component manifest for tooling.
+- `src/WebPiano.ts` — Main component class. All UI, pointer/keyboard/MIDI handling, and event dispatch.
+- `src/note-utils.ts` — MIDI ↔ note name conversion utilities (no external music library; ~70 lines, intentionally inlined instead of depending on `tonal`).
+- `src/index.ts` — Class + type exports.
+- `src/web-piano.ts` — Registers the custom element as `<web-piano>`.
+- `test/` — Browser tests via @web/test-runner.
+- `demo/index.html` — Interactive demo page.
+- `dist/` — Build output (gitignored).
+- `custom-elements.json` — Web component manifest, regenerated via `npm run analyze`.
 
 ## Tech Stack
 
-Lit 2.x for reactive properties and efficient shadow DOM rendering. Tonal library (specifically `Note` and `Chord` imports) for converting MIDI note numbers to scientific pitch notation. Web MIDI API for MIDI device input.
+Lit 3.x with TypeScript decorators (`@property`, `@state`). tsup builds ESM + `.d.ts`. The dev server (`@web/dev-server` + esbuild plugin) serves `.ts` directly with no build step. No runtime dependencies besides Lit.
 
 ## Development Workflow
 
-Run: `npm start` (starts @web/dev-server on port 8000, opens /demo/)
-Build: No build step required; uses bare module imports resolved by dev server. 
-No tests currently configured.
+```bash
+npm start          # dev server on http://localhost:8000/demo/
+npm run build      # compile TS → dist/ (JS + .d.ts)
+npm test           # browser tests via @web/test-runner (Chrome)
+npm run analyze    # regenerate custom-elements.json
+```
 
 ## Key Implementation Details
 
-The component maintains an `activeNotes` array tracking currently pressed notes. All 88 keys (A0 to C8) are hardcoded in the render method as divs with `note` attributes. White keys get `.white` class, black keys get `.black` class. Selected keys receive `.selected` class which changes background color. 
+- MIDI numbers are the internal representation; note name strings are the public-facing format. Keys are generated programmatically from the `start-note`/`end-note` range (defaults A0–C8, 88 keys).
+- Keys are `<button>` elements with ARIA labels and `aria-pressed`. White keys get `.white`, black keys `.black`, pressed/highlighted keys `.active`.
+- `_pressedKeys` (internal `Set<number>`) tracks user-pressed notes; `activeNotes` (external string[] property) highlights notes programmatically. Rendered state is the union.
+- Performance: per-key render data (`_keyData`) is rebuilt only when the range changes; `activeNotes` is parsed once per change into `_activeMidiSet`; `_pressedKeys` is mutated in place with an explicit `requestUpdate()` rather than copied — keep it that way.
+- Pointer events attach to the `.piano` container, not individual keys. `setPointerCapture` keeps tracking during drags; `shadowRoot.elementFromPoint` determines which key the pointer is over (black-key overlap works because they have higher z-index).
+- Velocity is derived from vertical click position (top = soft 30, bottom = loud 127). Keyboard input uses fixed velocity 80.
+- Keyboard maps 17 keys (A–; row) to C4–E5 via `DEFAULT_KEYBOARD_MAP`. Z/X shift the octave down/up (clamped to ±3); keyup releases the note the key actually struck via `_keyboardHeldNotes`. Requires component focus (`tabIndex` set to 0 in `connectedCallback`).
+- MIDI connects in `connectedCallback` via `navigator.requestMIDIAccess()`, cleans up in `disconnectedCallback`. Hot-plugged devices are wired up via the `statechange` event on `MIDIAccess`. `enableMidi` can be toggled at runtime (handled in `updated()`). MIDI input does NOT require focus.
+- Sustain pedal (MIDI CC 64): while down, `_releaseNote` defers releases into `_sustainedNotes`; pedal-up releases them. Re-striking a sustained note dispatches note-off then note-on.
+- On blur, all pressed keys are released to prevent stuck notes.
 
-Keyboard input uses a hardcoded `KEYBOARD_NOTE_MAP` object mapping lowercase letters to specific notes (a=C4, w=Db4, etc.). Only 15 keys are mapped. Key events only fire when the component has focus (`tabIndex` set to 0 in firstUpdated).
+## Events
 
-MIDI setup happens in `firstUpdated()` via `navigator.requestMIDIAccess()`. All MIDI inputs get the same `handleMIDIMessage` arrow function handler. MIDI note-on (velocity > 0) triggers `strikeNote`, note-off (velocity 0) triggers `releaseNote`. MIDI only responds when component is document.activeElement.
+- `note-on` — `detail: { note: string, midi: number, velocity: number }`
+- `note-off` — `detail: { note: string, midi: number }`
 
-Mouse handlers (`mousedown`/`mouseup`) are attached to all `.key` elements in firstUpdated. They call the same `strikeNote`/`releaseNote` methods as keyboard/MIDI. 
-
-Component loses all active notes on blur via `_handleBlur` which releases all `.selected` elements.
-
-The `.playingDisplay` div shows comma-separated active notes as text. The `.indicator` div is a visual focus indicator that changes color via CSS variable when focused.
+Both use `bubbles: true, composed: true` to cross shadow DOM boundaries.
 
 ## Conventions
 
-Note names use scientific pitch notation with flats (Db not C#). All note-related attributes use this format. Event detail is always a single note string, never an array or object.
-
-Private methods use single underscore prefix (`_handleKeyDown`). The `__increment` method is unused legacy code.
-
-Static `properties` define `header` and `counter` but these are also unused—likely boilerplate from component scaffold.
+- Note names use scientific pitch notation with flats (`Db4`, not `C#4`) in output; `noteNameToMidi` accepts both sharps and flats as input.
+- Private methods and fields use a single underscore prefix (`_onKeyDown`).
+- Consumer styling via CSS custom properties (`--key-white-color`, `--key-black-color`, `--key-active-color`, `--key-border-color`, `--key-label-color`, `--key-label-active-color`) and CSS parts (`key`, `white-key`, `black-key`).
 
 ## Gotchas
 
-The keyboard map only covers C4 to E5 with specific letter keys. No octave shifting or configurable mapping exists. 
+- Computer keyboard input silently does nothing without focus; MIDI works regardless of focus.
+- Safari does not support the Web MIDI API. The component degrades gracefully (console warning; keyboard/mouse still work).
+- The keyboard map covers C4–E5, shiftable ±3 octaves with Z/X; there is no configurable mapping.
 
-MIDI and keyboard input silently fail if component doesn't have focus. The visual indicator provides feedback but no console warnings.
+## What NOT to Do
 
-Multiple simultaneous presses of the same note (e.g., via keyboard and MIDI) are prevented by checking `activeNotes.indexOf(noteName)` before striking. Releasing removes only the first occurrence in the array.
-
-The component sets `tabIndex = 0` in firstUpdated rather than via attribute or property, so you cannot override it declaratively.
-
-All 88 keys are in the template regardless of viewport size. No responsive layout or scrolling is implemented.
-
-CSS uses percentages and vmin units. Changing the host element's width/height scales the piano but may break key proportions.
-
-## References
-
-Lit docs for reactive property and event patterns. Tonal docs for Note.fromMidi and other utilities. Web MIDI API spec for MIDI message structure (status byte, data byte 1 = note number, data byte 2 = velocity).
+- Don't add new dependencies without asking first.
+- Don't reorganize the file structure.
