@@ -58,6 +58,12 @@
     button:hover { background: #3a3a4e; }
     button.active { border-color: #4a87fa; color: #4a87fa; }
 
+    #midi-status {
+      align-self: center;
+      font-size: 0.85rem;
+      color: #999;
+    }
+
     #event-log {
       background: #0d0d1a;
       border: 1px solid #333;
@@ -76,6 +82,15 @@
 </head>
 <body>
   <h1>web-piano</h1>
+
+  <div class="controls">
+    <button id="btn-sound" class="active">Sound: on</button>
+    <button data-synth="piano" class="active">Piano</button>
+    <button data-synth="epiano">E-Piano</button>
+    <button data-synth="organ">Organ</button>
+    <button data-synth="saw">Saw</button>
+    <span id="midi-status">MIDI: checking…</span>
+  </div>
 
   <div class="demo-section">
     <h2>Full 88-key piano</h2>
@@ -152,6 +167,226 @@
 
     document.addEventListener('note-on', e => logEvent('note-on', e.detail));
     document.addEventListener('note-off', e => logEvent('note-off', e.detail));
+
+    // --- WebAudio synth with selectable presets ---
+    let soundOn = true;
+    let currentSynth = 'piano';
+    let audioCtx = null;
+    let master = null;
+    const voices = new Map(); // midi -> { release }
+
+    function ensureAudioCtx() {
+      if (!audioCtx) {
+        audioCtx = new AudioContext();
+        master = audioCtx.createGain();
+        master.gain.value = 0.9;
+        // Compressor keeps chords from clipping
+        const comp = audioCtx.createDynamicsCompressor();
+        master.connect(comp).connect(audioCtx.destination);
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function midiToFreq(midi) {
+      return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+
+    // A-weighting (IEC 61672) approximates the ear's equal-loudness curve.
+    function aWeightDb(f) {
+      const f2 = f * f;
+      const r = (12194 ** 2 * f2 * f2) /
+        ((f2 + 20.6 ** 2) *
+         Math.sqrt((f2 + 107.7 ** 2) * (f2 + 737.9 ** 2)) *
+         (f2 + 12194 ** 2));
+      return 20 * Math.log10(r) + 2.0;
+    }
+
+    // Equal-loudness compensation relative to A4. Applied at half strength
+    // and clamped: full inverse A-weighting overcorrects for complex tones
+    // (overtones carry much of the perceived loudness) and would demand
+    // +40 dB in the bottom octave.
+    const LOUDNESS_STRENGTH = 0.5;
+    const LOUDNESS_CLAMP_DB = 10;
+    const REF_A_DB = aWeightDb(440);
+
+    function loudnessGain(freq) {
+      const db = (REF_A_DB - aWeightDb(freq)) * LOUDNESS_STRENGTH;
+      const clamped = Math.max(-LOUDNESS_CLAMP_DB, Math.min(LOUDNESS_CLAMP_DB, db));
+      return Math.pow(10, clamped / 20);
+    }
+
+    // Builds a voice from oscillator partials [ratio, gain, type] feeding a
+    // shared envelope gain (optionally through a filter). Returns { release }.
+    function buildVoice(ctx, partials, filter, gain, releaseTime) {
+      const oscs = [];
+      const input = filter || gain;
+      for (const [freq, level, type] of partials) {
+        const osc = ctx.createOscillator();
+        osc.type = type;
+        osc.frequency.value = freq;
+        const oscGain = ctx.createGain();
+        oscGain.gain.value = level;
+        osc.connect(oscGain).connect(input);
+        osc.start();
+        oscs.push(osc);
+      }
+      if (filter) filter.connect(gain);
+      // partials[0] is the fundamental — equal-loudness compensation
+      const comp = ctx.createGain();
+      comp.gain.value = loudnessGain(partials[0][0]);
+      gain.connect(comp).connect(master);
+      oscs[0].onended = () => comp.disconnect();
+      return {
+        release() {
+          const t = ctx.currentTime;
+          gain.gain.cancelScheduledValues(t);
+          gain.gain.setValueAtTime(gain.gain.value, t);
+          gain.gain.setTargetAtTime(0, t, releaseTime / 4);
+          for (const osc of oscs) osc.stop(t + releaseTime * 2);
+        },
+      };
+    }
+
+    const SYNTHS = {
+      // Struck string: slightly inharmonic partials, velocity-controlled
+      // brightness via a closing lowpass, long natural decay.
+      piano(ctx, freq, vel) {
+        const now = ctx.currentTime;
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(700 + 5300 * vel, now);
+        filter.frequency.exponentialRampToValueAtTime(350 + 1400 * vel, now + 1.2);
+
+        const gain = ctx.createGain();
+        const peak = 0.5 * (0.15 + 0.85 * vel * vel);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(peak, now + 0.003);
+        gain.gain.setTargetAtTime(0, now + 0.003, 1.1);
+
+        return buildVoice(ctx, [
+          [freq, 1, 'triangle'],
+          [freq * 2.001, 0.25, 'sine'],
+          [freq * 3.004, 0.1, 'sine'],
+        ], filter, gain, 0.25);
+      },
+
+      // Tine sound: pure fundamental with a fast-decaying bright overtone
+      // whose level scales steeply with velocity.
+      epiano(ctx, freq, vel) {
+        const now = ctx.currentTime;
+        const gain = ctx.createGain();
+        const peak = 0.45 * (0.2 + 0.8 * vel);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(peak, now + 0.004);
+        gain.gain.setTargetAtTime(peak * 0.25, now + 0.004, 0.9);
+
+        const tine = ctx.createGain();
+        tine.gain.setValueAtTime(0.6 * vel * vel, now);
+        tine.gain.setTargetAtTime(0, now, 0.12);
+        const tineOsc = ctx.createOscillator();
+        tineOsc.frequency.value = freq * 3.98;
+        tineOsc.connect(tine).connect(gain);
+        tineOsc.start();
+
+        const voice = buildVoice(ctx, [[freq, 1, 'sine']], null, gain, 0.3);
+        const release = voice.release;
+        voice.release = () => { release(); tineOsc.stop(ctx.currentTime + 0.6); };
+        return voice;
+      },
+
+      // Drawbar organ: stacked harmonics, full sustain while held.
+      organ(ctx, freq, vel) {
+        const now = ctx.currentTime;
+        const gain = ctx.createGain();
+        const peak = 0.2 * (0.4 + 0.6 * vel);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(peak, now + 0.02);
+
+        return buildVoice(ctx, [
+          [freq, 1, 'sine'],
+          [freq * 2, 0.5, 'sine'],
+          [freq * 3, 0.25, 'sine'],
+          [freq * 4, 0.12, 'sine'],
+        ], null, gain, 0.1);
+      },
+
+      // Filtered saw lead, velocity opens the filter.
+      saw(ctx, freq, vel) {
+        const now = ctx.currentTime;
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(400 + 6000 * vel, now);
+        filter.frequency.setTargetAtTime(300 + 2500 * vel, now, 0.4);
+        filter.Q.value = 2;
+
+        const gain = ctx.createGain();
+        const peak = 0.25 * (0.3 + 0.7 * vel);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(peak, now + 0.005);
+        gain.gain.setTargetAtTime(peak * 0.7, now + 0.005, 0.5);
+
+        return buildVoice(ctx, [[freq, 1, 'sawtooth']], filter, gain, 0.2);
+      },
+    };
+
+    function startVoice(midi, velocity) {
+      const ctx = ensureAudioCtx();
+      stopVoice(midi);
+      const voice = SYNTHS[currentSynth](ctx, midiToFreq(midi), velocity / 127);
+      voices.set(midi, voice);
+    }
+
+    function stopVoice(midi) {
+      const voice = voices.get(midi);
+      if (!voice) return;
+      voices.delete(midi);
+      voice.release();
+    }
+
+    document.querySelectorAll('[data-synth]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentSynth = btn.dataset.synth;
+        document.querySelectorAll('[data-synth]').forEach(b =>
+          b.classList.toggle('active', b === btn));
+      });
+    });
+
+    document.addEventListener('note-on', e => {
+      if (soundOn) startVoice(e.detail.midi, e.detail.velocity);
+    });
+    document.addEventListener('note-off', e => {
+      if (audioCtx) stopVoice(e.detail.midi);
+    });
+
+    // --- MIDI status indicator ---
+    const midiStatus = document.getElementById('midi-status');
+    if (!navigator.requestMIDIAccess) {
+      midiStatus.textContent = 'MIDI: not supported in this browser (use Chrome, Edge, or Firefox)';
+    } else {
+      navigator.requestMIDIAccess().then(access => {
+        const update = () => {
+          const names = [...access.inputs.values()].map(i => i.name || 'unnamed device');
+          midiStatus.textContent = names.length
+            ? `MIDI: connected — ${names.join(', ')}`
+            : 'MIDI: ready, no devices detected';
+        };
+        access.addEventListener('statechange', update);
+        update();
+      }).catch(err => {
+        midiStatus.textContent = `MIDI: unavailable (${err.name}) — check the browser permission prompt`;
+      });
+    }
+
+    const btnSound = document.getElementById('btn-sound');
+    btnSound.addEventListener('click', () => {
+      soundOn = !soundOn;
+      btnSound.textContent = `Sound: ${soundOn ? 'on' : 'off'}`;
+      btnSound.classList.toggle('active', soundOn);
+      if (!soundOn) {
+        for (const midi of [...voices.keys()]) stopVoice(midi);
+      }
+    });
   </script>
 </body>
 </html>
