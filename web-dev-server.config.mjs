@@ -9,6 +9,9 @@ export default /** @type {import('@web/dev-server').DevServerConfig} */ ({
     exportConditions: ['browser', 'development'],
   },
   plugins: [
-    esbuildPlugin({ ts: true }),
+    esbuildPlugin({
+      ts: true,
+      tsconfig: './tsconfig.json',
+    }),
   ],
 });
