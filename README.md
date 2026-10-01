@@ -207,3 +207,7 @@ npm test           # run tests
 ## License
 
 MIT
+
+## Verification before review or release
+
+Use Node 22 and Chrome/Chromium. Run `npm ci`, `npm test`, then `npm run build`. Set `CHROME_PATH` if Chrome is not discoverable. Browser tests cover note conversion, key rendering, keyboard/pointer input, MIDI mocks, and note release behavior; the build also emits checked TypeScript declarations. The **Component acceptance** workflow runs these checks on pull requests and main pushes using a standard public-repository Ubuntu runner. It does not publish npm packages or deploy Pages. Pages success alone is not component acceptance evidence.

@@ -1,0 +1,27 @@
+name: Component acceptance
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: component-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Browser component acceptance tests
+        run: npm test
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+      - name: Build component and declarations
+        run: npm run build
